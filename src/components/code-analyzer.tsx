@@ -3,6 +3,7 @@
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { FormEvent, useCallback, useState } from "react";
 import type { AiCodeAnalysis, CodeAnalysisResponse } from "@/lib/schemas";
+import { saveHistory } from "@/lib/chat-history";
 
 const ANALYSIS_TYPES = [
   { value: "full", label: "Toàn diện", icon: "🔍" },
@@ -72,6 +73,16 @@ export function CodeAnalyzer({ apiKey }: { apiKey: string }) {
         setAnalysis(data.analysis);
         setActiveTab("issues");
         setPhase("results");
+        saveHistory({
+          module: "code",
+          title: `Phân tích ${data.analysis.language}`,
+          prompt: code.slice(0, 200),
+          metadata: {
+            language: data.analysis.language,
+            qualityScore: data.analysis.qualityScore,
+            issueCount: data.analysis.issues.length,
+          },
+        });
       } catch (err) {
         setError(err instanceof Error ? err.message : "Đã có lỗi khi phân tích code.");
         setPhase("input");

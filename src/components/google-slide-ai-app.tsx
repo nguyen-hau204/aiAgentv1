@@ -3,6 +3,7 @@
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PreviewResponse } from "@/lib/schemas";
+import { saveHistory } from "@/lib/chat-history";
 import { SlidePreview, SlideThumb } from "./slide-preview";
 
 type SpeechRecognitionCtor = new () => SpeechRecognition;
@@ -239,6 +240,12 @@ export function GoogleSlideAIApp() {
         setPreview(data);
         setCurrentSlide(0);
         setPhase("preview");
+        saveHistory({
+          module: "slide",
+          title: data.title || command.slice(0, 60),
+          prompt: command,
+          metadata: { slideCount, groupName, fileName: data.fileName },
+        });
       } catch (err) {
         setError(err instanceof Error ? err.message : "Đã có lỗi khi tạo bài thuyết trình.");
         setPhase("input");

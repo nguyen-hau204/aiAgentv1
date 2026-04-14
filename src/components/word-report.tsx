@@ -3,6 +3,7 @@
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { FormEvent, useCallback, useState } from "react";
 import type { AiReport, ReportPreviewResponse, ReportType } from "@/lib/schemas";
+import { saveHistory } from "@/lib/chat-history";
 
 const REPORT_TYPES: { value: ReportType; label: string; icon: string }[] = [
   { value: "academic", label: "Luận văn / Học thuật", icon: "🎓" },
@@ -89,6 +90,12 @@ export function WordReport({ apiKey }: { apiKey: string }) {
         const data = (await response.json()) as ReportPreviewResponse;
         setPreview(data);
         setPhase("preview");
+        saveHistory({
+          module: "word",
+          title: data.report.title || topic.slice(0, 60),
+          prompt: topic,
+          metadata: { reportType, pageCount, fileName: data.fileName },
+        });
       } catch (err) {
         setError(err instanceof Error ? err.message : "Đã có lỗi khi tạo báo cáo.");
         setPhase("input");

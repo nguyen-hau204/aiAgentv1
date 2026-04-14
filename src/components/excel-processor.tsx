@@ -3,6 +3,7 @@
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { FormEvent, useCallback, useState } from "react";
 import type { AiExcelData, ExcelPreviewResponse } from "@/lib/schemas";
+import { saveHistory } from "@/lib/chat-history";
 
 const STEPS = [
   "Phân tích yêu cầu dữ liệu",
@@ -75,6 +76,12 @@ export function ExcelProcessor({ apiKey }: { apiKey: string }) {
         setPreview(data);
         setActiveSheet(0);
         setPhase("preview");
+        saveHistory({
+          module: "excel",
+          title: data.data.title || description.slice(0, 60),
+          prompt: description,
+          metadata: { sheetCount, fileName: data.fileName },
+        });
       } catch (err) {
         setError(err instanceof Error ? err.message : "Đã có lỗi khi tạo bảng tính.");
         setPhase("input");

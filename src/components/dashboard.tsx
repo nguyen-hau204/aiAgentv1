@@ -6,6 +6,8 @@ import { GoogleSlideAIApp } from "./google-slide-ai-app";
 import { WordReport } from "./word-report";
 import { ExcelProcessor } from "./excel-processor";
 import { CodeAnalyzer } from "./code-analyzer";
+import { ChatHistoryPanel } from "./chat-history-panel";
+import type { ChatHistoryItem } from "@/lib/chat-history";
 
 type ModuleKey = "slide" | "word" | "excel" | "code";
 
@@ -76,6 +78,11 @@ export function Dashboard() {
   const [apiKey, setApiKey] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+
+  function handleSelectHistory(item: ChatHistoryItem) {
+    setActiveModule(item.module as ModuleKey);
+  }
 
   const currentModule = useMemo(
     () => MODULES.find((m) => m.key === activeModule) || MODULES[0],
@@ -188,8 +195,21 @@ export function Dashboard() {
           })}
         </nav>
 
-        {/* Settings */}
+        {/* History + Settings */}
         <div className="border-t border-white/10 p-3">
+          <button
+            type="button"
+            onClick={() => setHistoryOpen(true)}
+            className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-400 transition hover:bg-white/[0.04] hover:text-white ${
+              sidebarCollapsed ? "justify-center" : ""
+            }`}
+          >
+            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 6v6l4 2" strokeLinecap="round" />
+            </svg>
+            {!sidebarCollapsed && "Lịch sử"}
+          </button>
           <button
             type="button"
             onClick={() => setSettingsOpen(true)}
@@ -235,6 +255,17 @@ export function Dashboard() {
             </button>
           );
         })}
+        <button
+          type="button"
+          onClick={() => setHistoryOpen(true)}
+          className="flex flex-1 flex-col items-center gap-1 py-3 text-[10px] font-semibold text-slate-500"
+        >
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M12 6v6l4 2" strokeLinecap="round" />
+          </svg>
+          Lịch sử
+        </button>
         <button
           type="button"
           onClick={() => setSettingsOpen(true)}
@@ -343,6 +374,13 @@ export function Dashboard() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* History Panel */}
+      <ChatHistoryPanel
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        onSelectItem={handleSelectHistory}
+      />
     </div>
   );
 }
