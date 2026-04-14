@@ -1,6 +1,6 @@
 "use client";
 
-import { CSSProperties, ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { CSSProperties, ReactNode, useEffect, useRef, useState } from "react";
 import { AiSlide, DeckTheme, ThemeInfo } from "@/lib/schemas";
 import { inferTextColor } from "@/lib/pptx/theme";
 
@@ -245,27 +245,47 @@ function ImageBlock({
     };
   }, [description, cacheKey]);
 
+  // Generate a gradient fallback SVG based on the slide description
+  const fallbackGradient = (() => {
+    const hash = description.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+    const hue1 = hash % 360;
+    const hue2 = (hue1 + 45) % 360;
+    const keyword = (slide.imageKeyword || slide.title || "").slice(0, 40);
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="450" viewBox="0 0 800 450">
+      <defs>
+        <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="hsl(${hue1},45%,22%)" />
+          <stop offset="100%" stop-color="hsl(${hue2},55%,16%)" />
+        </linearGradient>
+        <radialGradient id="o1" cx="30%" cy="35%" r="40%">
+          <stop offset="0%" stop-color="hsl(${hue1},50%,35%)" stop-opacity="0.4" />
+          <stop offset="100%" stop-color="transparent" />
+        </radialGradient>
+        <radialGradient id="o2" cx="75%" cy="70%" r="35%">
+          <stop offset="0%" stop-color="hsl(${hue2},60%,30%)" stop-opacity="0.35" />
+          <stop offset="100%" stop-color="transparent" />
+        </radialGradient>
+      </defs>
+      <rect width="800" height="450" fill="url(#g)" />
+      <rect width="800" height="450" fill="url(#o1)" />
+      <rect width="800" height="450" fill="url(#o2)" />
+      <circle cx="${200 + (hash % 200)}" cy="${100 + (hash % 120)}" r="120" fill="hsl(${hue1},40%,28%)" opacity="0.3" />
+      <circle cx="${500 + (hash % 150)}" cy="${280 + (hash % 80)}" r="90" fill="hsl(${hue2},50%,25%)" opacity="0.25" />
+      <text x="400" y="420" fill="white" opacity="0.15" font-family="Arial" font-size="16" text-anchor="middle">${keyword.replace(/[<>&"']/g, "")}</text>
+    </svg>`;
+    return `data:image/svg+xml;base64,${btoa(svg)}`;
+  })();
+
   return (
     <div className={`relative overflow-hidden rounded-md ${className}`} style={style}>
       {loading ? (
         <div className="shimmer h-full w-full" style={{ backgroundColor: "rgba(255,255,255,0.04)" }} />
-      ) : src ? (
+      ) : (
         <img
-          src={src}
+          src={src || fallbackGradient}
           alt={slide.imageDescription || slide.title}
           className="h-full w-full object-cover"
         />
-      ) : (
-        <div
-          className="flex h-full w-full items-center justify-center"
-          style={{ backgroundColor: "rgba(255,255,255,0.04)" }}
-        >
-          <svg viewBox="0 0 24 24" className="h-[20%] w-[20%] opacity-20" fill="none" stroke="currentColor" strokeWidth="1">
-            <rect x="3" y="3" width="18" height="18" rx="2" />
-            <circle cx="8.5" cy="8.5" r="1.5" />
-            <path d="m21 15-5-5L5 21" />
-          </svg>
-        </div>
       )}
       <div className="absolute inset-0" style={{ backgroundColor: overlayColor }} />
     </div>
