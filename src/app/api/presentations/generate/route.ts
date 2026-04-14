@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     }
 
     const deck = await generateDeckOutline(parsed.data);
-    const { buffer, fileName, themeName, mode, theme } = await renderDeckToBuffer(deck, parsed.data);
+    const { buffer, fileName, themeName, mode, theme } = await renderDeckToBuffer(deck, parsed.data, parsed.data.apiKeys);
 
     const response: PreviewResponse = {
       title: deck.title,

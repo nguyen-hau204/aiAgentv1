@@ -1,6 +1,6 @@
 "use client";
 
-import { CSSProperties, ReactNode } from "react";
+import { CSSProperties, ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { AiSlide, DeckTheme, ThemeInfo } from "@/lib/schemas";
 import { inferTextColor } from "@/lib/pptx/theme";
 
@@ -105,12 +105,6 @@ function gradientStyle(palette: PreviewPalette, index: number): CSSProperties {
   };
 }
 
-function imageUrl(slide: AiSlide, idx: number) {
-  const base = (slide.imageQuery || slide.imageKeyword || "professional presentation").trim();
-  const keyword = encodeURIComponent(`${base}, cinematic lighting, professional photography, high detail`);
-  return `https://source.unsplash.com/1600x900/?${keyword}&sig=${idx + 11}`;
-}
-
 function ClampText({
   children,
   lines = 2,
@@ -158,6 +152,56 @@ function Badge({ palette, num }: { palette: PreviewPalette; num: number }) {
   );
 }
 
+// ─── In-memory image cache ─────────────────────────────────
+const imageCache = new Map<string, string>();
+const inflightRequests = new Map<string, Promise<string | null>>();
+
+function getApiKey(): string {
+  try {
+    return localStorage.getItem("googleslideai.gemini-key.v1") || "";
+  } catch {
+    return "";
+  }
+}
+
+async function fetchAiImage(description: string): Promise<string | null> {
+  const cacheKey = description.slice(0, 120);
+  const cached = imageCache.get(cacheKey);
+  if (cached) return cached;
+
+  // Deduplicate in-flight requests
+  const existing = inflightRequests.get(cacheKey);
+  if (existing) return existing;
+
+  const promise = (async () => {
+    try {
+      const apiKey = getApiKey();
+      const res = await fetch("/api/images/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          description,
+          apiKeys: apiKey ? [apiKey] : [],
+        }),
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (data.imageBase64) {
+        imageCache.set(cacheKey, data.imageBase64);
+        return data.imageBase64 as string;
+      }
+      return null;
+    } catch {
+      return null;
+    } finally {
+      inflightRequests.delete(cacheKey);
+    }
+  })();
+
+  inflightRequests.set(cacheKey, promise);
+  return promise;
+}
+
 function ImageBlock({
   slide,
   index,
@@ -171,9 +215,58 @@ function ImageBlock({
   style?: CSSProperties;
   overlayColor?: string;
 }) {
+  const [src, setSrc] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const mounted = useRef(true);
+
+  const description = slide.imageDescription || slide.imageKeyword || slide.title;
+  const cacheKey = description.slice(0, 120);
+
+  useEffect(() => {
+    mounted.current = true;
+    // Check cache first (sync)
+    const cached = imageCache.get(cacheKey);
+    if (cached) {
+      setSrc(cached);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    fetchAiImage(description).then((result) => {
+      if (mounted.current) {
+        setSrc(result);
+        setLoading(false);
+      }
+    });
+
+    return () => {
+      mounted.current = false;
+    };
+  }, [description, cacheKey]);
+
   return (
     <div className={`relative overflow-hidden rounded-md ${className}`} style={style}>
-      <img src={imageUrl(slide, index)} alt={slide.imageDescription || slide.title} className="h-full w-full object-cover" />
+      {loading ? (
+        <div className="shimmer h-full w-full" style={{ backgroundColor: "rgba(255,255,255,0.04)" }} />
+      ) : src ? (
+        <img
+          src={src}
+          alt={slide.imageDescription || slide.title}
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        <div
+          className="flex h-full w-full items-center justify-center"
+          style={{ backgroundColor: "rgba(255,255,255,0.04)" }}
+        >
+          <svg viewBox="0 0 24 24" className="h-[20%] w-[20%] opacity-20" fill="none" stroke="currentColor" strokeWidth="1">
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <circle cx="8.5" cy="8.5" r="1.5" />
+            <path d="m21 15-5-5L5 21" />
+          </svg>
+        </div>
+      )}
       <div className="absolute inset-0" style={{ backgroundColor: overlayColor }} />
     </div>
   );

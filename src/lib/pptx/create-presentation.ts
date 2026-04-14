@@ -1,6 +1,7 @@
 import pptxgen from "pptxgenjs";
 import { AiDeck, AiSlide, GeneratePresentationInput } from "@/lib/schemas";
 import { PptxTheme, inferTextColor, selectTheme } from "./theme";
+import { generateImages, getImageApiKey } from "@/lib/generate-image";
 
 const W = 10;
 const H = 5.625;
@@ -307,47 +308,16 @@ function fallbackSvg(slide: AiSlide, palette: SlidePalette, idx: number) {
   return `data:image/svg+xml;base64,${Buffer.from(svg, "utf8").toString("base64")}`;
 }
 
-function unsplashUrl(slide: AiSlide, idx: number) {
-  const base = norm(slide.imageQuery || slide.imageKeyword || "professional presentation").slice(0, 88);
-  const boosted = `${base}, cinematic lighting, professional photography, high detail`;
-  const query = encodeURIComponent(boosted);
-  return `https://source.unsplash.com/1600x900/?${query}&sig=${idx}`;
-}
+async function prefetchImages(slides: AiSlide[], apiKey: string) {
+  const items = slides
+    .map((slide, index) => ({ index: index + 1, slide }))
+    .filter(({ slide }) => slide.type !== "cover" && slide.type !== "summary")
+    .map(({ index, slide }) => ({
+      index,
+      description: norm(slide.imageDescription || slide.imageKeyword || slide.title, "professional presentation visual"),
+    }));
 
-async function fetchImage(slide: AiSlide, idx: number): Promise<string | null> {
-  const ctrl = new AbortController();
-  const timeout = setTimeout(() => ctrl.abort(), 8000);
-  try {
-    const response = await fetch(unsplashUrl(slide, idx), {
-      redirect: "follow",
-      signal: ctrl.signal,
-      headers: { Accept: "image/jpeg,image/png,image/*" },
-      cache: "no-store",
-    });
-    if (!response.ok) return null;
-    const contentType = response.headers.get("content-type") || "image/jpeg";
-    const buffer = Buffer.from(await response.arrayBuffer());
-    if (buffer.length < 24_000 || /html|text/.test(contentType)) return null;
-    const safeType = /png/.test(contentType) ? "image/png" : "image/jpeg";
-    return `data:${safeType};base64,${buffer.toString("base64")}`;
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-async function prefetchImages(slides: AiSlide[]) {
-  const images: ImageMap = new Map();
-  await Promise.all(
-    slides.map(async (slide, index) => {
-      const num = index + 1;
-      if (slide.type === "cover" || slide.type === "summary") return;
-      const data = await fetchImage(slide, num);
-      if (data) images.set(num, data);
-    }),
-  );
-  return images;
+  return generateImages(items, apiKey);
 }
 
 function image(
@@ -853,10 +823,11 @@ export function getThemeForDeck(deck: AiDeck) {
   return selectTheme(deck.themeHint || "", deck.theme, deck.themeMode);
 }
 
-export async function renderDeckToBuffer(deck: AiDeck, input: GeneratePresentationInput) {
+export async function renderDeckToBuffer(deck: AiDeck, input: GeneratePresentationInput, apiKeys?: string[]) {
   const { name: themeName, mode, theme } = selectTheme(deck.themeHint || "", deck.theme, deck.themeMode);
   const slides = deck.slides.slice(0, input.slideCount);
-  const images = await prefetchImages(slides);
+  const imageApiKey = getImageApiKey(apiKeys);
+  const images = await prefetchImages(slides, imageApiKey);
 
   const pres = new pptxgen();
   pres.defineLayout({ name: "LAYOUT_16X9", width: W, height: H });
